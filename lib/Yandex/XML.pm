@@ -72,7 +72,7 @@ sub xmlsearch {
     unless $response->is_success;
   my $xml = $response->content;
   die "ошибка кодировки" unless from_to($xml, 'utf-8', 'windows1251');
-  return $string;
+  return $xml;
 } # xml-ответ на запрос через xml-интерфейс
 
 
@@ -137,8 +137,8 @@ sub _position {
 
 sub url_indexed {
   my $url = shift;
-  $url ~= s#http://##i;
-  $url ~= s#www\.##i;
+  $url =~ s#http://##i;
+  $url =~ s#www\.##i;
   my $query = "url:$url || url:www.$url";
   my $xml_doc = xmlsearch($query);
   die $xml_doc;
