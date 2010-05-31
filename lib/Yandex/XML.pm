@@ -5,10 +5,12 @@ use strict;
 use warnings;
 
 use URI;
-use Encode qw( from_to );
+use Encode qw( from_to encode decode );
 use LWP;
 use XML::XPath;
 use Yandex::Account;
+
+use Data::Dumper;
 
 
 sub xmlescape {
@@ -19,7 +21,7 @@ sub xmlescape {
   $data =~ s/&/&amp;/sg;
   $data =~ s/</&lt;/sg;
   $data =~ s/>/&gt;/sg;
-  $data =~ s/"/&quot;/sg;
+  $data =~ s/\"/&quot;/sg;
 
   return $data;
 } # замена escape-символов для xml-документов
@@ -53,16 +55,20 @@ EOF
 } # формирует xml-запрос к яндексу
 
 
-sub xmlsearch {
-  my ($query, $page) = @_;
+sub search {
+  my ($query, $page, $ip) = @_;
 
-  my $random_account = Yandex::Account->new_random();
+  unless ($ip){
+    my $random_account = Yandex::Account->new_random();
+    $ip = $random_account->ip;
+  }
+  
   my $ua = LWP::UserAgent->new;
   {
     no warnings;
     @LWP::Protocol::http::EXTRA_SOCK_OPTS = ( 
       PeerAddr => '77.88.21.13',
-      LocalAddr => $random_account->ip,
+      LocalAddr => $ip,
     );
   }
 
@@ -71,7 +77,8 @@ sub xmlsearch {
   die "ошибка xml сервиса: ". ($response->status_line) ."\n" 
     unless $response->is_success;
   my $xml = $response->content;
-  die "ошибка кодировки" unless from_to($xml, 'utf-8', 'windows1251');
+#  die "ошибка кодировки" unless from_to($xml, 'utf-8', 'windows1251');
+#  $xml =~ s#encoding="utf-8"#encoding="windows-1251"#;
   return $xml;
 } # xml-ответ на запрос через xml-интерфейс
 
@@ -110,7 +117,7 @@ sub _position {
     $query = $query.' << cat=('.(11000000+geo_code($region)).')';
   }
 
-  my $xml_doc = xmlsearch($query, $page);
+  my $xml_doc = search($query, $page);
   my $xml = XML::XPath->new( xml => $xml_doc );
 
   my $error = $xml -> findvalue ('/yandexsearch/response/error');
@@ -137,11 +144,18 @@ sub _position {
 
 sub url_indexed {
   my $url = shift;
+  my $ip = shift;
   $url =~ s#http://##i;
   $url =~ s#www\.##i;
   my $query = "url:$url || url:www.$url";
-  my $xml_doc = xmlsearch($query);
-  die $xml_doc;
+  my $xml_doc = search($query, 0, $ip);
+  my $utf8_xml = $xml_doc;
+  from_to($xml_doc, 'utf-8', 'cp1251');
+  return 0 if $xml_doc =~ /<error code="15">Искомая комбинация слов нигде не встречается</;
+  my $xml = XML::XPath->new(xml => $utf8_xml);
+  my $error = $xml->findvalue('/yandexsearch/response/error');
+  die $error if $error;
+  return 1;
 } # проверка проиндексированности урла яндексом (с помощью оператора языка запросов url: )
 
 

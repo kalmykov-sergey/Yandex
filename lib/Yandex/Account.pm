@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use DBI;
-
+use Data::Dumper;
 
 sub new_random {
   my $class = shift;
@@ -52,6 +52,15 @@ sub sites {
   return $self->{sites};
 } # список сайтов вебмастера данного аккаунта
 
+sub all_ips {
+  my $dbh = DBI->connect('dbi:mysql:database=seo;host=mail.plarson.ru', 'lavan', 'Gh2mooK6C');
+  my $all = $dbh->selectall_arrayref("
+    select ip from yandex_accounts
+  ", {Slice => {}});
+  my @ips = map{$_->{ip}} @$all;
+  $dbh->disconnect;
+  return @ips;
+}
 
 1;
 
