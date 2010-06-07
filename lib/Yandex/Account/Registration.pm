@@ -36,25 +36,31 @@ use DBI;
 sub new {
   my ($class, $hash_ref, $file_to_retrieve) = @_;
 
-  if($file_to_retrieve){
-    return retrieve($file_to_retrieve);
-  }
 
   my $ua = LWP::UserAgent->new(
-    agent => 'Mozilla 5.0 (MSIE 9.0)',
+    agent => 'Mozilla 5.0 (MSIE 8.0)',
     requests_redirectable => ['GET', 'POST'],
   );
   $ua->cookie_jar({
-    #file => 'cookies.lwp', 
-    #autosave => 1
+#    file => 'cookies.lwp', 
+#    autosave => 1
   });
-  $ua->get('http://xml.yandex.ru'); # для куков
-
   my $iname = $hash_ref->{iname} || rand_iname();
   my $fname = $hash_ref->{fname} || rand_fname();
-
+  
   my $self = {ua => $ua, iname => $iname, fname => $fname};
   bless $self, $class;
+
+  if($file_to_retrieve){
+    $Storable::Eval = 1;
+    my $stored = retrieve($file_to_retrieve);
+    $self->{store} = $file_to_retrieve;
+    $self->{ua}->cookie_jar($stored->{cookie_jar});
+    $self->{form2} = $stored->{form};
+  } else {
+    $self->{ua}->get('http://xml.yandex.ru'); # для куков
+  }
+
   return $self;
 }
 
@@ -68,23 +74,30 @@ sub _step1 {
 
   # отсылаем сначала форму с уже существующим логином, 
   # чтобы получить подсказку - список доступных логинов
+  my $login = _create_login($self->{iname}, $self->{fname});
+
   my $form1 = HTML::Form->parse($resp1);
   $form1->value(iname => $self->{iname});
   $form1->value(fname => $self->{fname});
-  $form1->value(login => 'a');
-  my $login_list_resp = $self->{ua}->request($form1->click);
-  # $login_list_resp->content =~ m{class="loginlist visible"};
-  
-  # создаем валидный (для Яндекса) логин 
-  my $login = _parse_yandex_logins($login_list_resp);
-  $login = _create_login($self->{iname}, $self->{fname}) unless $login;
-
-  # отсылаем форму с нормальным логином
-  $self->{login} = $login;
   $form1->value(login => $login);
   my $resp2 = $self->{ua}->request($form1->click);
   die $resp2->status_line unless $resp2->is_success;
 
+  if($resp2->content =~ m{class="loginlist visible"}){ # список доступных логинов
+    # создаем валидный (для Яндекса) логин 
+    $login = _parse_yandex_logins($resp2->content);
+    $form1 = HTML::Form->parse($resp2);
+    $form1->value(iname => $self->{iname});
+    $form1->value(fname => $self->{fname});
+
+    # отсылаем форму с нормальным логином
+    $form1->value(login => $login);
+    $resp2 = $self->{ua}->request($form1->click);
+  } else {
+    # такого логина нет, т.е. можно регистрировать дальше
+  }
+
+  $self->{login} = $login;
   return $resp2;
 }
 
@@ -94,20 +107,36 @@ sub get_captcha {
   my $resp2 = $self->_step1;
   die $resp2->status_line unless $resp2->is_success;
   my $html = $resp2->content;
-  open my $w, '>resp2.html';
-  print $w $html;
-  close $w;
 
   my $src = $1 if $html =~ m{class="captcha-img" src="([^"]*)"};
-  die "не нашли адреса капчи" unless $src;
+  $self->{ua}->get($src); # ЭТО ОЧЕНЬ ВАЖНО, ИНАЧЕ РЕГИСТРАЦИЯ НЕ ПРОЙДЕТ
+  unless($src){
+    open my $w, '>whereiscaptcha.html';
+    print $w $html;
+    close $w;
+    die "не нашли адреса капчи"; 
+  }
 
   # сохраняем объект в файле $rand_file_name
-  my $rand_file_name = md5_hex($self);
+  my $rand_file_name = md5_hex($self) . '.storable';
   $self->{resp2} = $resp2;
   $self->{store} = $rand_file_name;
   $self->{src} = $src;
-  store $self, $rand_file_name;
+#  die Dumper $self;
 
+  my $form2 = HTML::Form->parse($resp2);
+  $form2->value(passwd => 'shkola91'); # вообще лучше генерить случайные
+  $form2->value(passwd2 => 'shkola91');
+  $form2->value(hintq => 3); # правильнее случайное целое от 0 до 5
+  $form2->value(hinta => 'I have no dog'); # а здесь ответ на секретный вопрос
+#  $form2->value(code => $code);
+
+  $Storable::Deparse = 1;
+  store {
+    form => $form2, 
+    cookie_jar => $self->{ua}->cookie_jar
+  }, $rand_file_name;
+ 
   return $src;
 }
 
@@ -116,23 +145,27 @@ sub send_captcha {
   my $self = shift;
   my $code = shift;
 
-  my $resp2 = $self->{resp2};
-  my $form2 = HTML::Form->parse($resp2);
+  my $form2 = $self->{form2};
+
   $form2->value(passwd => 'shkola91'); # вообще лучше генерить случайные
   $form2->value(passwd2 => 'shkola91');
   $form2->value(hintq => 3); # правильнее случайное целое от 0 до 5
-  $form2->value(hinta => 'Жучка'); # а здесь ответ на секретный вопрос
+  $form2->value(hinta => 'I have no dog'); # а здесь ответ на секретный вопрос
   $form2->value(code => $code);
   
   my $req = $form2->click;
   $self->{ua}->prepare_request($req);
-  #die Dumper($req);
+#  die Dumper($req);
   my $resp3 = $self->{ua}->request($req);
 
   my $html = encode('cp1251', decode('utf-8', $resp3->content));
 
   if($html =~ /Вы неправильно ввели контрольные цифры./){
+    unlink $self->{store} if $self->{store};
     return 0;
+  }
+  if($html =~ /Ошибка обработки запроса/){
+    die "bad request (?):\n", Dumper ($req);
   }
   if($html =~ /\(Cookies\)/){
     die $req->as_string, "\nнеобходимо включить куки (Cookies)";
@@ -151,12 +184,15 @@ sub send_captcha {
 
 
 sub _parse_yandex_logins {
-  my $resp = shift;
-  open my $w, '>resp_logins.html';
-  print $w $resp->content;
-  close $w;
-  # TODO:
-  return;
+  my $html = shift;
+  my $login = $1 if $html =~ /class="loginlist visible">.*?<strong>([^<]*)</si;
+  unless ($login){
+    open my $w, '>logins.html';
+    print $w $html;
+    close $w;
+    die "cannot parse login list (see logins.html)";
+  }
+  return $login;
 }
 
 
@@ -177,7 +213,7 @@ sub _create_login($$) {
   my $login = lc $line;
   $login =~ tr/ абвгдеёжзийклмнопрстуфхцчшщэьъюя/.abvgdeejzijklmnoprstufhc4wwe77uy/;
   $login =~ s{y}{ja};
-  $login .= ".dr";
+#  $login .= ".dr";
   return $login; 
 }
 
