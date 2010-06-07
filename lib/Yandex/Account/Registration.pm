@@ -10,25 +10,36 @@ use Data::Dumper;
 use Storable;
 use Digest::MD5 qw(md5_hex);
 use Encode;
-use DBI;
 
 =pod
 
-	#!/usr/bin/perl -w
+  #!/usr/bin/perl -w
 
-	use CGI qw(:standard);
-	use Yandex::Account::Registration;
+  use CGI qw(:standard);
+  use Yandex::Account::Registration;
 
-    $reg = Yandex::Account::Registration->new();
-    $url = $reg->get_captcha();
-    $filename = $reg->{store};
-    ---
-    $filename = param('store');
-    $code = param('code');
-    $reg = Yandex::Account::Registration->new({}, $filename);
+  my $msg;
+  if(my $filename = param('store')){
+    my $code = param('code');
+    my $reg = Yandex::Account::Registration->new({}, $filename);
     if (my $ok = $reg->send_captcha($code)){
-      $reg->save_to_db;
+      $msg = "Success!";
     }
+  }
+
+  my $reg = Yandex::Account::Registration->new();
+  my $src = $reg->get_captcha();
+  my $filename = $reg->{store};
+
+  print header(-type => 'text/html', -charset => 'cp1251'),
+    h1("Lets register ".$reg->{iname}. " ". $reg->{fname}),
+    h3($msg),
+    start_form, 
+    img({src => $src}), 
+    textfield('code'), 
+    hidden('store', $filename),
+    submit, 
+    end_form;
 
 =cut
 
@@ -129,7 +140,6 @@ sub get_captcha {
   $form2->value(passwd2 => 'shkola91');
   $form2->value(hintq => 3); # правильнее случайное целое от 0 до 5
   $form2->value(hinta => 'I have no dog'); # а здесь ответ на секретный вопрос
-#  $form2->value(code => $code);
 
   $Storable::Deparse = 1;
   store {
@@ -146,16 +156,10 @@ sub send_captcha {
   my $code = shift;
 
   my $form2 = $self->{form2};
-
-  $form2->value(passwd => 'shkola91'); # вообще лучше генерить случайные
-  $form2->value(passwd2 => 'shkola91');
-  $form2->value(hintq => 3); # правильнее случайное целое от 0 до 5
-  $form2->value(hinta => 'I have no dog'); # а здесь ответ на секретный вопрос
   $form2->value(code => $code);
   
   my $req = $form2->click;
   $self->{ua}->prepare_request($req);
-#  die Dumper($req);
   my $resp3 = $self->{ua}->request($req);
 
   my $html = encode('cp1251', decode('utf-8', $resp3->content));
@@ -193,17 +197,6 @@ sub _parse_yandex_logins {
     die "cannot parse login list (see logins.html)";
   }
   return $login;
-}
-
-
-sub save_to_db {
-  my $self = shift;
-  my $ip = shift || '';
-  my $dbh = DBI->connect("dbi:mysql:seo", 'lavan', 'Gh2mooK6C');
-  $dbh->do("
-    insert into yandex_accounts (login, password, ip) values (?, ?, ?)
-  ", {}, $self->login, 'shkola91', $ip);
-  $dbh->disconnect;
 }
 
 

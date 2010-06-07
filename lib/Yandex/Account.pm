@@ -62,6 +62,18 @@ sub all_ips {
   return @ips;
 }
 
+
+sub save_to_db {
+  my $self = shift;
+  my $ip = shift || '';
+  my $dbh = DBI->connect("dbi:mysql:seo", 'lavan', 'Gh2mooK6C');
+  $dbh->do("
+    insert into yandex_accounts (login, password, ip) values (?, ?, ?)
+  ", {}, $self->login, 'shkola91', $ip);
+  $dbh->disconnect;
+}
+
+
 1;
 
 __END__
