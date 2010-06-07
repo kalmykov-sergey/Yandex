@@ -63,9 +63,9 @@ sub all_ips {
 }
 
 
-sub save_to_db {
-  my $self = shift;
-  my $ip = shift || '';
+sub register {
+  my ($iname, $fname, $ip) = @_;
+  my $registration = Yandex::Account::Registration->new($iname, $fname);
   my $dbh = DBI->connect("dbi:mysql:seo", 'lavan', 'Gh2mooK6C');
   $dbh->do("
     insert into yandex_accounts (login, password, ip) values (?, ?, ?)

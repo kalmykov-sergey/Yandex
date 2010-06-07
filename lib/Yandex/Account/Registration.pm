@@ -46,8 +46,7 @@ use Encode;
 
 sub new {
   my ($class, $hash_ref, $file_to_retrieve) = @_;
-
-
+  
   my $ua = LWP::UserAgent->new(
     agent => 'Mozilla 5.0 (MSIE 8.0)',
     requests_redirectable => ['GET', 'POST'],
@@ -68,6 +67,8 @@ sub new {
     $self->{store} = $file_to_retrieve;
     $self->{ua}->cookie_jar($stored->{cookie_jar});
     $self->{form2} = $stored->{form};
+    $self->{login} = $stored->{login};
+    $self->{password} = $stored->{password};
   } else {
     $self->{ua}->get('http://xml.yandex.ru'); # для куков
   }
@@ -135,14 +136,18 @@ sub get_captcha {
   $self->{src} = $src;
 #  die Dumper $self;
 
+  $self->{password} = 'shkola91'; # вообще лучше генерить случайные
+
   my $form2 = HTML::Form->parse($resp2);
-  $form2->value(passwd => 'shkola91'); # вообще лучше генерить случайные
-  $form2->value(passwd2 => 'shkola91');
+  $form2->value(passwd => $self->{password}); 
+  $form2->value(passwd2 => $self->{password});
   $form2->value(hintq => 3); # правильнее случайное целое от 0 до 5
   $form2->value(hinta => 'I have no dog'); # а здесь ответ на секретный вопрос
 
   $Storable::Deparse = 1;
   store {
+    login => $self->{login},
+    password => $self->{password},
     form => $form2, 
     cookie_jar => $self->{ua}->cookie_jar
   }, $rand_file_name;
@@ -183,6 +188,11 @@ sub send_captcha {
   
   $self->{ua}->get('http://passport.yandex.ru/passport?mode=logout'); # для очистки куков
   unlink $self->{store} if $self->{store};
+
+  open my $a, '>>logins.log';
+  print $a $self->{login}, "\t", $self->{password}; 
+  close $a;
+
   return 1;
 }
 
@@ -211,12 +221,25 @@ sub _create_login($$) {
 }
 
 
+
 sub rand_iname {
-  return 'Вася';
+  my $file = __FILE__;
+  $file =~ s{\/Registration\.pm}{/inames.txt};
+
+  open my $r, $file;
+  my @names = <$r>;
+  close $r;
+  return $names[rand(0..$#names)];
 } # TODO:
 
 sub rand_fname {
-  return 'Пупкин';
+  my $file = __FILE__;
+  $file =~ s{\/Registration\.pm}{/fnames.txt};
+
+  open my $r, $file;
+  my @names = <$r>;
+  close $r;
+  return $names[rand(0..$#names)];
 } # TODO:
 
 sub fetch_person {
