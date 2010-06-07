@@ -190,7 +190,7 @@ sub send_captcha {
   unlink $self->{store} if $self->{store};
 
   open my $a, '>>logins.log';
-  print $a $self->{login}, "\t", $self->{password}; 
+  print $a $self->{login}, "\t", $self->{password}, "\n"; 
   close $a;
 
   return 1;
@@ -221,26 +221,25 @@ sub _create_login($$) {
 }
 
 
+my $dir = __FILE__;
+$dir =~ s{/Registration\.pm}{};
+
 
 sub rand_iname {
-  my $file = __FILE__;
-  $file =~ s{\/Registration\.pm}{/inames.txt};
-
-  open my $r, $file;
-  my @names = <$r>;
+  open my $r, "<$dir/inames.txt";
+  chomp(my @names = <$r>);
   close $r;
-  return $names[rand(0..$#names)];
-} # TODO:
+  return $names[int rand($#names)];
+}
+
 
 sub rand_fname {
-  my $file = __FILE__;
-  $file =~ s{\/Registration\.pm}{/fnames.txt};
-
-  open my $r, $file;
-  my @names = <$r>;
+  open my $r, "$dir/fnames.txt";
+  chomp(my @names = <$r>);
   close $r;
-  return $names[rand(0..$#names)];
-} # TODO:
+  return $names[int rand($#names)];
+}
+
 
 sub fetch_person {
   open my $r, 'base.txt';
