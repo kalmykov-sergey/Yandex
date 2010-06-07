@@ -14,3 +14,6 @@ isa_ok($rand_account->sites, 'ARRAY', 'account->sites');
 my $site_account = Yandex::Account->new_from_site('admos.ru');
 diag( "Account '". $site_account->{login} ."' created by new_from_site constructor\n". Dumper($site_account) );
 ok(scalar @{$site_account->sites} > 0, 'and it has non-empty list of sites');
+
+my $new_acc = Yandex::Account->new();
+$new_acc->delete;

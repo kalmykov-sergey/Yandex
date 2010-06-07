@@ -24,6 +24,7 @@ use Encode;
     my $reg = Yandex::Account::Registration->new({}, $filename);
     if (my $ok = $reg->send_captcha($code)){
       $msg = "Success!";
+      my $acc = Yandex::Account->new($reg->{login}, $reg->{password});
     }
   }
 
@@ -99,6 +100,7 @@ sub _step1 {
     # создаем валидный (для Яндекса) логин 
     $login = _parse_yandex_logins($resp2->content);
     $form1 = HTML::Form->parse($resp2);
+    # TODO: имя и фамилия заполняется не в той кодировке
     $form1->value(iname => $self->{iname});
     $form1->value(fname => $self->{fname});
 

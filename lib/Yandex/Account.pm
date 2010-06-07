@@ -6,12 +6,25 @@ use warnings;
 use DBI;
 use Data::Dumper;
 
+sub new {
+  my ($class, $login, $password, $ip) = @_;
+  $ip ||= '';
+  my $dbh = DBI->connect('dbi:mysql:database=seo;host=mail.plarson.ru', 'lavan', 'Gh2mooK6C');
+  $dbh->do("
+    insert into yandex_accounts (login, password, ip) values (?, ?, ?)
+  ", {}, $login, $password, $ip);
+  my $self = $dbh->selectrow_hashref("select * where id=?", {}, $dbh->{'mysql_insertid'});
+  $dbh->disconnect;
+  bless $self, $class;
+}
+
+
 sub new_random {
   my $class = shift;
   my $sql_fetch_random = "
     select * from yandex_accounts order by rand()
   ";
-  return $class->_new($sql_fetch_random);
+  return $class->_fetch($sql_fetch_random);
 } # конструктор - случайный аккаунт яндекса
 
 
@@ -23,11 +36,11 @@ sub new_from_site {
     on yandex_accounts.id = yandex_sites.account_id
     where yandex_sites.url like '$site'
   ";
-  return $class->_new($sql_fetch_by_site);
+  return $class->_fetch($sql_fetch_by_site);
 } # конструктор - (один из) аккаунт вебмастера сайта
 
 
-sub _new {
+sub _fetch {
   my ($class, $query) = @_;
   my $dbh = DBI->connect('dbi:mysql:database=seo;host=mail.plarson.ru', 'lavan', 'Gh2mooK6C');
   my $row = $dbh->selectrow_hashref($query);
@@ -62,7 +75,7 @@ sub all_ips {
   return @ips;
 }
 
-
+=pod
 sub register {
   my ($iname, $fname, $ip) = @_;
   my $registration = Yandex::Account::Registration->new($iname, $fname);
@@ -72,7 +85,7 @@ sub register {
   ", {}, $self->login, 'shkola91', $ip);
   $dbh->disconnect;
 }
-
+=cut
 
 1;
 
