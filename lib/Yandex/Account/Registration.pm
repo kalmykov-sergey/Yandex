@@ -88,6 +88,7 @@ sub _step1 {
   # отсылаем сначала форму с уже существующим логином, 
   # чтобы получить подсказку - список доступных логинов
   my $login = _create_login($self->{iname}, $self->{fname});
+  #die $login;
 
   my $form1 = HTML::Form->parse($resp1);
   $form1->value(iname => $self->{iname});
@@ -123,16 +124,16 @@ sub get_captcha {
   my $html = $resp2->content;
 
   my $src = $1 if $html =~ m{class="captcha-img" src="([^"]*)"};
-  $self->{ua}->get($src); # ЭТО ОЧЕНЬ ВАЖНО, ИНАЧЕ РЕГИСТРАЦИЯ НЕ ПРОЙДЕТ
   unless($src){
     open my $w, '>whereiscaptcha.html';
     print $w $html;
     close $w;
-    die "не нашли адреса капчи"; 
+    die "не нашли адреса капчи\n$html"; 
   }
+    $self->{ua}->get($src); # ЭТО ОЧЕНЬ ВАЖНО, ИНАЧЕ РЕГИСТРАЦИЯ НЕ ПРОЙДЕТ
 
   # сохраняем объект в файле $rand_file_name
-  my $rand_file_name = md5_hex($self) . '.storable';
+  my $rand_file_name = 'upload/'. md5_hex($self) . '.storable';
   $self->{resp2} = $resp2;
   $self->{store} = $rand_file_name;
   $self->{src} = $src;
@@ -211,11 +212,16 @@ sub _parse_yandex_logins {
   return $login;
 }
 
+sub my_lc {
+  my $self = shift;
+  $self =~ tr/АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЬЫЪЭЮЯ/абвгдеёжзийклмнопрстуфхцчшщьыъэюя/;
+  return $self;
+}
 
 sub _create_login($$) {
   my ($iname, $fname) = @_;
   my $line = $iname . " " . $fname;
-  my $login = lc $line;
+  my $login = my_lc( $line );
   $login =~ tr/ абвгдеёжзийклмнопрстуфхцчшщэьъюя/.abvgdeejzijklmnoprstufhc4wwe77uy/;
   $login =~ s{y}{ja};
 #  $login .= ".dr";
