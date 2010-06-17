@@ -11,7 +11,12 @@ use XML::XPath;
 use Yandex::Account;
 
 use Data::Dumper;
+our $last_ip;
 
+
+sub last_ip {
+  return $last_ip;
+}
 
 sub xmlescape {
   my($data, $level) = @_;
@@ -62,6 +67,7 @@ sub search {
     my $random_account = Yandex::Account->new_random();
     $ip = $random_account->ip;
   }
+  $last_ip = $ip;
   
   my $ua = LWP::UserAgent->new;
   {

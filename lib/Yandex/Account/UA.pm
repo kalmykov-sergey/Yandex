@@ -38,7 +38,19 @@ sub authenticate {
     die "auth failed (see auth.html)";
   }
 }
+=pod
+sub delete {
+  my $self = shift;
+  $self->{ua}->get('http://passport.yandex.ru/passport?mode=delete');
+  unless( $resp->content =~ /Сменить IP-адрес/){
+    open my $w, '>reg1.html';
+    print $w $resp->content;
+    close $w;
+    die "register failed (see reg1.html)";
+  }
 
+}
+=cut
 
 sub register_ip {
   my $self = shift;
