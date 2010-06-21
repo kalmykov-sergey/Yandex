@@ -80,6 +80,9 @@ sub search {
 
   my $req = yandex_xml_request($query, {page => $page});
   my $response = $ua->request($req);
+  
+  @LWP::Protocol::http::EXTRA_SOCK_OPTS = (); # clear peer addr
+  
   die "ошибка xml сервиса: ". ($response->status_line) ."\n" 
     unless $response->is_success;
   my $xml = $response->content;
